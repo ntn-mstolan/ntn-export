@@ -55,6 +55,7 @@ def parse_lesson():
         lesson_content = data.get('lessonContent', '')
         grade_level = data.get('gradeLevel', 'Middle School')
         topic = data.get('topic', '')
+        timeframe = data.get('timeframe', '60 minutes')
         
         # Extract metadata
         rubric_match = re.search(r'\*\*Rubric Focus:\*\*\s*(.+)', lesson_content, re.IGNORECASE)
@@ -79,7 +80,7 @@ def parse_lesson():
         replacements = {
             '{{GRADE_LEVEL}}': grade_level,
             '{{TOPIC}}': topic,
-            '{{TIMEFRAME}}': '60 minutes',
+            '{{TIMEFRAME}}': timeframe,
             '{{STANDARD}}': strip_markdown(standard),
             '{{OUTCOME}}': strip_markdown(outcome),
             '{{RUBRIC_FOCUS}}': strip_markdown(rubric_focus),
