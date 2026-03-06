@@ -53,6 +53,8 @@ def parse_lesson():
     try:
         data = request.json
         lesson_content = data.get('lessonContent', '')
+        grade_level = data.get('gradeLevel', 'Middle School')
+        topic = data.get('topic', '')
         
         # Extract metadata
         rubric_match = re.search(r'\*\*Rubric Focus:\*\*\s*(.+)', lesson_content, re.IGNORECASE)
@@ -67,9 +69,6 @@ def parse_lesson():
         standard_match = re.search(r'\*\*Connection to Standard:\*\*[\s\S]*?"(.+?)"', lesson_content, re.IGNORECASE)
         standard = standard_match.group(1).strip() if standard_match else ''
         
-        grade_match = re.search(r'\(([^)]+)\)', rubric_focus)
-        grade_level = grade_match.group(1) if grade_match else 'Middle School'
-        
         # Extract sections
         section1 = extract_section(lesson_content, 1)
         section2 = extract_section(lesson_content, 2)
@@ -79,7 +78,7 @@ def parse_lesson():
         # Build replacements
         replacements = {
             '{{GRADE_LEVEL}}': grade_level,
-            '{{TOPIC}}': 'Heat Transfer',
+            '{{TOPIC}}': topic,
             '{{TIMEFRAME}}': '60 minutes',
             '{{STANDARD}}': strip_markdown(standard),
             '{{OUTCOME}}': strip_markdown(outcome),
