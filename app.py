@@ -1,95 +1,110 @@
-from flask import Flask, request, send_file
-from docx import Document
-import requests
-import io
+from flask import Flask, request, jsonify
 import re
 
 app = Flask(__name__)
 
-@app.route('/generate-docx', methods=['POST'])
-def generate_docx():
-    try:
-        data = request.json
-        lesson_data = data.get('lessonData', {})
-        template_url = data.get('templateUrl')
-        filename = data.get('filename', 'NTN_Lesson.docx')
-        
-        # Download template from Google Drive
-        template_response = requests.get(template_url)
-        template_file = io.BytesIO(template_response.content)
-        
-        # Open template
-        doc = Document(template_file)
-        
-        # Helper function to strip markdown
-        def strip_markdown(text):
-            if not text:
-                return ''
-            # Remove markdown formatting
-            text = re.sub(r'\*\*\*(.+?)\*\*\*', r'\1', text)  # Bold italic
-            text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)       # Bold
-            text = re.sub(r'\*(.+?)\*', r'\1', text)           # Italic
-            text = re.sub(r'###\s*', '', text)                 # Headers
-            text = re.sub(r'^---+\s*$', '', text, flags=re.MULTILINE)  # Horizontal rules
-            text = text.replace('●', '•')                      # Normalize bullets
-            return text.strip()
-        
-        # Prepare replacements - strip markdown from all values
-        replacements = {
-            '{{GRADE_LEVEL}}': strip_markdown(lesson_data.get('gradeLevel', '')),
-            '{{TOPIC}}': strip_markdown(lesson_data.get('topic', '')),
-            '{{TIMEFRAME}}': strip_markdown(lesson_data.get('timeframe', '')),
-            '{{STANDARD}}': strip_markdown(lesson_data.get('standard', '')),
-            '{{OUTCOME}}': strip_markdown(lesson_data.get('outcome', '')),
-            '{{RUBRIC_FOCUS}}': strip_markdown(lesson_data.get('rubricFocus', '')),
-            '{{ACTIVITY_NAME}}': strip_markdown(lesson_data.get('activityName', '')),
-            '{{SECTION_1_CONTENT}}': strip_markdown(lesson_data.get('section1Content', '')),
-            '{{SECTION_1_TIME}}': strip_markdown(lesson_data.get('section1Time', '')),
-            '{{SECTION_2_CONTENT}}': strip_markdown(lesson_data.get('section2Content', '')),
-            '{{SECTION_2_TIME}}': strip_markdown(lesson_data.get('section2Time', '')),
-            '{{SECTION_3_CONTENT}}': strip_markdown(lesson_data.get('section3Content', '')),
-            '{{SECTION_3_TIME}}': strip_markdown(lesson_data.get('section3Time', '')),
-            '{{SECTION_4_CONTENT}}': strip_markdown(lesson_data.get('section4Content', '')),
-            '{{SECTION_4_TIME}}': strip_markdown(lesson_data.get('section4Time', '')),
-        }
-        
-        # Replace in paragraphs
-        for paragraph in doc.paragraphs:
-            for key, value in replacements.items():
-                if key in paragraph.text:
-                    for run in paragraph.runs:
-                        if key in run.text:
-                            run.text = run.text.replace(key, value)
-        
-        # Replace in tables
-        for table in doc.tables:
-            for row in table.rows:
-                for cell in row.cells:
-                    for paragraph in cell.paragraphs:
-                        for key, value in replacements.items():
-                            if key in paragraph.text:
-                                for run in paragraph.runs:
-                                    if key in run.text:
-                                        run.text = run.text.replace(key, value)
-        
-        # Save to BytesIO
-        output = io.BytesIO()
-        doc.save(output)
-        output.seek(0)
-        
-        return send_file(
-            output,
-            mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            as_attachment=True,
-            download_name=filename
-        )
-        
-    except Exception as e:
-        return {'error': str(e)}, 500
+def strip_markdown(text):
+    """Remove markdown formatting from text"""
+    if not text:
+        return ''
+    
+    # Remove bold+italic ***
+    text = re.sub(r'\*\*\*(.+?)\*\*\*', r'\1', text)
+    # Remove bold **
+    text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)
+    # Remove italic *
+    text = re.sub(r'\*(.+?)\*', r'\1', text)
+    # Remove headers ###
+    text = re.sub(r'###\s*', '', text)
+    # Remove horizontal rules
+    text = re.sub(r'---+', '', text)
+    # Convert bullets to •
+    text = re.sub(r'^\s*[-*]\s+', '• ', text, flags=re.MULTILINE)
+    # Remove numbered list markers
+    text = re.sub(r'^\s*\d+\.\s+', '', text, flags=re.MULTILINE)
+    
+    return text.strip()
+
+def extract_section(lesson_content, num):
+    """Extract a section and its time from lesson content"""
+    pattern = rf'###\s*\*\*{num}\.(.+?)(?=###\s*\*\*{num + 1}\.|$)'
+    match = re.search(pattern, lesson_content, re.IGNORECASE | re.DOTALL)
+    
+    if not match:
+        return {'content': '', 'time': ''}
+    
+    full_section = match.group(1)
+    
+    # Extract time
+    time_match = re.search(r'\*\((\d+\s*minutes?)\)\*', full_section, re.IGNORECASE)
+    time = time_match.group(1) if time_match else ''
+    
+    return {
+        'content': strip_markdown(full_section.strip()),
+        'time': time
+    }
 
 @app.route('/health', methods=['GET'])
 def health():
-    return {'status': 'healthy'}, 200
+    return jsonify({"status": "healthy"})
+
+@app.route('/parse-lesson', methods=['POST'])
+def parse_lesson():
+    try:
+        data = request.json
+        lesson_content = data.get('lessonContent', '')
+        
+        # Extract metadata
+        rubric_match = re.search(r'\*\*Rubric Focus:\*\*\s*(.+)', lesson_content, re.IGNORECASE)
+        rubric_focus = rubric_match.group(1).strip() if rubric_match else ''
+        
+        outcome_match = re.search(r'\*\*Learning Target:\*\*\s*(.+)', lesson_content, re.IGNORECASE)
+        outcome = outcome_match.group(1).strip() if outcome_match else ''
+        
+        activity_match = re.search(r'\*\*Activity:\*\*\s*(.+)', lesson_content, re.IGNORECASE)
+        activity_name = activity_match.group(1).strip() if activity_match else ''
+        
+        standard_match = re.search(r'\*\*Connection to Standard:\*\*[\s\S]*?"(.+?)"', lesson_content, re.IGNORECASE)
+        standard = standard_match.group(1).strip() if standard_match else ''
+        
+        grade_match = re.search(r'\(([^)]+)\)', rubric_focus)
+        grade_level = grade_match.group(1) if grade_match else 'Middle School'
+        
+        # Extract sections
+        section1 = extract_section(lesson_content, 1)
+        section2 = extract_section(lesson_content, 2)
+        section3 = extract_section(lesson_content, 3)
+        section4 = extract_section(lesson_content, 4)
+        
+        # Build replacements object
+        replacements = {
+            '{{GRADE_LEVEL}}': grade_level,
+            '{{TOPIC}}': 'Heat Transfer',
+            '{{TIMEFRAME}}': '60 minutes',
+            '{{STANDARD}}': strip_markdown(standard),
+            '{{OUTCOME}}': strip_markdown(outcome),
+            '{{RUBRIC_FOCUS}}': strip_markdown(rubric_focus),
+            '{{ACTIVITY_NAME}}': strip_markdown(activity_name),
+            '{{SECTION_1_CONTENT}}': section1['content'],
+            '{{SECTION_1_TIME}}': section1['time'],
+            '{{SECTION_2_CONTENT}}': section2['content'],
+            '{{SECTION_2_TIME}}': section2['time'],
+            '{{SECTION_3_CONTENT}}': section3['content'],
+            '{{SECTION_3_TIME}}': section3['time'],
+            '{{SECTION_4_CONTENT}}': section4['content'],
+            '{{SECTION_4_TIME}}': section4['time']
+        }
+        
+        return jsonify({
+            'success': True,
+            'replacements': replacements
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080)
