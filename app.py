@@ -76,7 +76,7 @@ def parse_lesson():
         section3 = extract_section(lesson_content, 3)
         section4 = extract_section(lesson_content, 4)
         
-        # Build replacements object
+        # Build replacements
         replacements = {
             '{{GRADE_LEVEL}}': grade_level,
             '{{TOPIC}}': 'Heat Transfer',
@@ -95,9 +95,22 @@ def parse_lesson():
             '{{SECTION_4_TIME}}': section4['time']
         }
         
+        # Build Google Docs API requests array
+        requests = []
+        for placeholder, value in replacements.items():
+            requests.append({
+                'replaceAllText': {
+                    'containsText': {
+                        'text': placeholder,
+                        'matchCase': True
+                    },
+                    'replaceText': value or ''
+                }
+            })
+        
         return jsonify({
             'success': True,
-            'replacements': replacements
+            'requests': requests
         })
         
     except Exception as e:
