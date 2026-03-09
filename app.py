@@ -43,8 +43,13 @@ def extract_section(lesson_content, num):
     time_match = re.search(r'\*\((\d+[-–]\d+\s*minutes?|\d+\s*minutes?)\)\*', full_section, re.IGNORECASE)
     time = time_match.group(1) if time_match else ''
     
+    # Strip the first line (section title) from content
+    lines = full_section.strip().splitlines()
+    content_lines = [line for line in lines[1:] if line.strip()]
+    content = '\n'.join(content_lines)
+    
     return {
-        'content': strip_markdown(full_section.strip()),
+        'content': strip_markdown(content.strip()),
         'time': time
     }
 
