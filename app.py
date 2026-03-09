@@ -45,8 +45,7 @@ def extract_section(lesson_content, num):
     
     # Strip the first line (section title) from content
     lines = full_section.strip().splitlines()
-    content_lines = [line for line in lines[1:] if line.strip()]
-    content = '\n'.join(content_lines)
+    content = '\n'.join(lines[1:])
     
     return {
         'content': strip_markdown(content.strip()),
