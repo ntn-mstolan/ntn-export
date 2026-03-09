@@ -27,7 +27,11 @@ def strip_markdown(text):
 
 def extract_section(lesson_content, num):
     """Extract a section and its time from lesson content"""
-    pattern = rf'###\s*\*\*{num}\.(.+?)(?=###\s*\*\*{num + 1}\.|$)'
+    if num < 5:
+        pattern = rf'###\s*\*\*{num}\.(.+?)(?=###\s*\*\*{num + 1}\.|$)'
+    else:
+        pattern = rf'###\s*\*\*{num}\.(.+?)$'
+    
     match = re.search(pattern, lesson_content, re.IGNORECASE | re.DOTALL)
     
     if not match:
@@ -36,7 +40,7 @@ def extract_section(lesson_content, num):
     full_section = match.group(1)
     
     # Extract time
-    time_match = re.search(r'\*\((\d+\s*minutes?)\)\*', full_section, re.IGNORECASE)
+    time_match = re.search(r'\*\((\d+[-–]\d+\s*minutes?|\d+\s*minutes?)\)\*', full_section, re.IGNORECASE)
     time = time_match.group(1) if time_match else ''
     
     return {
@@ -70,11 +74,12 @@ def parse_lesson():
         standard_match = re.search(r'\*\*Connection to Standard:\*\*[\s\S]*?"(.+?)"', lesson_content, re.IGNORECASE)
         standard = standard_match.group(1).strip() if standard_match else ''
         
-        # Extract sections
+        # Extract all 5 sections
         section1 = extract_section(lesson_content, 1)
         section2 = extract_section(lesson_content, 2)
         section3 = extract_section(lesson_content, 3)
         section4 = extract_section(lesson_content, 4)
+        section5 = extract_section(lesson_content, 5)
         
         # Build replacements
         replacements = {
@@ -92,7 +97,9 @@ def parse_lesson():
             '{{SECTION_3_CONTENT}}': section3['content'],
             '{{SECTION_3_TIME}}': section3['time'],
             '{{SECTION_4_CONTENT}}': section4['content'],
-            '{{SECTION_4_TIME}}': section4['time']
+            '{{SECTION_4_TIME}}': section4['time'],
+            '{{SECTION_5_CONTENT}}': section5['content'],
+            '{{SECTION_5_TIME}}': section5['time'],
         }
         
         # Build Google Docs API requests array
