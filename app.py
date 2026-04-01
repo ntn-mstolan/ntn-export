@@ -130,7 +130,7 @@ def parse_lesson():
             'error': str(e)
         }), 500
 
-/parse-lesson-traditional route for 6-section traditional format
+# /parse-lesson-traditional route for 6-section traditional format
                                    
 @app.route('/parse-lesson-traditional', methods=['POST'])
 def parse_lesson_traditional():
